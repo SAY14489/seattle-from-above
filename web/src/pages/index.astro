@@ -1,0 +1,149 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getSummary } from "../lib/data";
+
+const summary = getSummary();
+---
+
+<Layout>
+  <div class="relative" style="height: calc(100vh - 110px);">
+    <div id="map" class="absolute inset-0" style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%;"></div>
+
+    <div class="absolute top-4 left-4 z-10 bg-neutral-900/90 backdrop-blur border border-neutral-800 rounded-lg p-4 max-w-xs shadow-xl">
+      <h1 class="text-base font-semibold mb-1">What's changed around here</h1>
+      <p class="text-xs text-neutral-400 leading-relaxed">
+        {summary.n_sites} of the most visible land changes in Washington, spotted by comparing satellite data year over year.
+      </p>
+      <ul class="text-xs text-neutral-400 mt-2 space-y-0.5">
+        {summary.regions.map((r) => (
+          <li>{r.region_label} &middot; {r.years.a} to {r.years.b} &middot; {r.n_sites} sites</li>
+        ))}
+      </ul>
+      <a href="/leaderboard" class="inline-block mt-3 text-xs font-medium text-amber-400 hover:text-amber-300">
+        See the full list &rarr;
+      </a>
+    </div>
+
+    <div class="absolute bottom-4 left-4 z-10 bg-neutral-900/90 backdrop-blur border border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-300 flex items-center gap-2">
+      <span>Low change</span>
+      <span class="inline-block w-24 h-2 rounded" style="background: linear-gradient(to right, #1e293b, #f59e0b, #ef4444);"></span>
+      <span>High change</span>
+    </div>
+  </div>
+</Layout>
+
+<style is:global>
+  @import "maplibre-gl/dist/maplibre-gl.css";
+  .maplibregl-popup-content {
+    background: #171717;
+    color: #f5f5f5;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    font-family: inherit;
+  }
+  .maplibregl-popup-tip {
+    border-top-color: #171717 !important;
+    border-bottom-color: #171717 !important;
+  }
+</style>
+
+<script type="application/json" id="map-config" set:html={JSON.stringify({ bbox: summary.bbox })} />
+
+<script>
+  import { Map as MapLibreMap, NavigationControl, Marker, Popup } from "maplibre-gl";
+
+  const { bbox } = JSON.parse(document.getElementById("map-config").textContent);
+
+  (async () => {
+    const map = new MapLibreMap({
+      container: "map",
+      style: "https://tiles.openfreemap.org/styles/liberty",
+      bounds: bbox,
+      fitBoundsOptions: { padding: 60, maxZoom: 12 },
+    });
+
+    map.addControl(new NavigationControl(), "top-right");
+
+    map.on("load", async () => {
+      const [cellsRes, sitesRes] = await Promise.all([
+        fetch("/data/cells.geojson").then((r) => r.json()),
+        fetch("/data/sites.geojson").then((r) => r.json()),
+      ]);
+
+      map.addSource("cells", { type: "geojson", data: cellsRes });
+      map.addLayer({
+        id: "cells-heat",
+        type: "fill",
+        source: "cells",
+        paint: {
+          "fill-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "mean_change_ab"],
+            0, "#1e293b",
+            0.15, "#334155",
+            0.3, "#f59e0b",
+            0.6, "#ef4444",
+          ],
+          "fill-opacity": 0.55,
+        },
+      });
+
+      map.addSource("sites", { type: "geojson", data: sitesRes });
+      map.addLayer({
+        id: "sites-fill",
+        type: "fill",
+        source: "sites",
+        paint: {
+          "fill-color": "#fbbf24",
+          "fill-opacity": 0.25,
+        },
+      });
+      map.addLayer({
+        id: "sites-outline",
+        type: "line",
+        source: "sites",
+        paint: { "line-color": "#fbbf24", "line-width": 1.5 },
+      });
+      map.addLayer({
+        id: "sites-points",
+        type: "circle",
+        source: "sites",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["get", "rank"], 1, 9, 100, 4],
+          "circle-color": "#fbbf24",
+          "circle-stroke-color": "#1c1917",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
+      map.on("click", "sites-points", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        window.location.href = `/site/${f.properties.id}`;
+      });
+      map.on("click", "sites-fill", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        window.location.href = `/site/${f.properties.id}`;
+      });
+
+      map.on("mouseenter", "sites-points", () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", "sites-points", () => (map.getCanvas().style.cursor = ""));
+
+      const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+      map.on("mousemove", "sites-points", (e) => {
+        const f = e.features?.[0];
+        if (!f) return;
+        popup
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div class="text-sm font-medium">#${f.properties.rank} ${f.properties.name}</div>
+             <div class="text-xs text-neutral-400">${f.properties.area_km2.toFixed(2)} km² · score ${f.properties.mean_change_ab.toFixed(2)}</div>`
+          )
+          .addTo(map);
+      });
+      map.on("mouseleave", "sites-points", () => popup.remove());
+    });
+  })();
+</script>

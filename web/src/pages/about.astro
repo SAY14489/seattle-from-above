@@ -1,0 +1,76 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getSummary } from "../lib/data";
+
+const summary = getSummary();
+---
+
+<Layout title="About | Seattle From Above">
+  <div class="max-w-2xl mx-auto px-4 py-10 w-full prose-invert">
+    <h1 class="text-2xl font-semibold mb-6">About this project</h1>
+
+    <section class="mb-8">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">What this is</h2>
+      <p class="text-sm text-neutral-300 leading-relaxed mb-3">
+        The biggest land changes for the area I grew up in: the Seattle metro and Mount Rainier.
+        It uses a public satellite dataset that covers the whole planet at 10 meter resolution,
+        every year back to 2017, a scientific way to see what's actually been changing around us.
+      </p>
+      <p class="text-sm text-neutral-300 leading-relaxed">
+        Right now it covers two areas as a starting point. If there's interest, more Washington
+        areas are an easy add. See the How it works section below for why.
+      </p>
+      <p class="text-sm text-neutral-300 leading-relaxed mt-3">
+        Spotted something that looks wrong, or want to see your own area covered? Email
+        <a href="mailto:say.analystics.sea@gmail.com" class="text-amber-400 hover:text-amber-300"> say.analystics.sea@gmail.com</a>.
+      </p>
+    </section>
+
+    <section class="mb-8">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">How it works</h2>
+      <p class="text-sm text-neutral-300 leading-relaxed mb-3">
+        Every 10 meter patch of land has a satellite "embedding" for each year: a vector that
+        summarizes what that patch looked like from space, derived from Sentinel-1, Sentinel-2 and
+        Landsat imagery by Ai2's OlmoEarth model. For each area, two years of embeddings are compared
+        pixel by pixel: 0 means "looks identical," higher means "looks very different."
+      </p>
+      <p class="text-sm text-neutral-300 leading-relaxed mb-3">
+        High-change pixels are grouped into cells, then merged into "sites" (connected blobs of change)
+        with a minimum size, so single noisy pixels don't make the list. Sites are ranked by
+        area &times; how much they changed. A third, middle year is also compared, to help separate
+        changes that stuck around from one-year flicker (a dry year, a cloudy pass, a crop rotation).
+      </p>
+      <ul class="text-sm text-neutral-300 leading-relaxed list-disc pl-5 space-y-1">
+        {summary.regions.map((r) => (
+          <li>{r.region_label} &middot; {r.years.a} to {r.years.b} &middot; {r.n_sites} sites</li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="mb-8">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Limitations</h2>
+      <ul class="text-sm text-neutral-300 leading-relaxed list-disc pl-5 space-y-1">
+        <li>Early years (2017 to 2020) have incomplete coverage in some areas; each area here uses a year pair with full coverage.</li>
+        <li>Change detection uses a local 20km-neighborhood z-score plus a 3-year persistence check (a site must still look different in a third, middle year), not a full crop-rotation / water-level-aware noise model.</li>
+        <li>Categorization is a best guess and has not undergone rigorous evaluation.</li>
+        <li>Place names come from reverse geocoding a site's centroid and may be approximate.</li>
+        <li>Before/after imagery is a single Sentinel-2 scene, picked for the clearest view of each specific site rather than a cloud-free composite, so some haze is possible.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Data &amp; credits</h2>
+      <ul class="text-sm text-neutral-300 leading-relaxed space-y-1">
+        <li>OlmoEarth v1.3 embeddings by Ai2, hosted on Source Cooperative, under the OlmoEarth Artifact License.</li>
+        <li>Contains modified Copernicus Sentinel data.</li>
+        <li>Before/after imagery: Sentinel-2 L2A via Microsoft Planetary Computer's STAC catalog.</li>
+        <li>Basemap: OpenFreeMap / Protomaps, © OpenStreetMap contributors.</li>
+        <li>Place names: OpenStreetMap Nominatim.</li>
+      </ul>
+      <p class="text-xs text-neutral-500 mt-4">
+        The OlmoEarth Artifact License bans military, defense, and extractive-industry uses of the
+        embeddings; this project is a public, non-commercial change map.
+      </p>
+    </section>
+  </div>
+</Layout>

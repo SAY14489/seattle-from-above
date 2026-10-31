@@ -1,0 +1,30 @@
+store:
+  url: "s3://olmoearth/olmoearth-v1-3-embeddings/embeddings.zarr"
+  endpoint: "https://data.source.coop"
+
+# Test box: Buckeye/Goodyear/Phoenix West Valley corridor, AZ.
+# One of the fastest-growing exurbs in the US -- farmland turning into
+# subdivisions and new logistics/data-center parks since ~2017.
+region:
+  name: buckeye_phoenix_corridor
+  center_lon: -112.58
+  center_lat: 33.40
+  size_km: 56.0
+
+years:
+  a: 2017   # "before"
+  b: 2025   # "after"
+  c: 2021   # middle year, for persistence filtering (M2)
+
+processing:
+  tile_px: 800      # streamed read tile size (8km x 8km), must be a multiple of cell_px
+  cell_px: 100      # aggregation cell size (1km x 1km)
+  bands: 64         # use the 64-dim matryoshka embedding subset (faster, still accurate)
+
+sites:
+  change_percentile_threshold: 90.0   # v1 self-referential threshold; M2 replaces with local z-score
+  min_area_km2: 0.25
+  min_pixels: 25     # redundant safety floor on top of min_area_km2
+
+paths:
+  data_dir: "../data/phoenix"

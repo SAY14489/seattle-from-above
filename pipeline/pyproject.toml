@@ -1,0 +1,37 @@
+[project]
+name = "pipeline"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Yusuf Mohammed", email = "yusufrm123@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "geopandas>=1.2.0",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "obstore>=0.12.1",
+    "pandas>=3.1.0",
+    "pillow>=13.0.0",
+    "planetary-computer>=1.0.0",
+    "pyarrow>=26.0.0",
+    "pyproj>=3.8.0",
+    "pystac-client>=0.9.1",
+    "pyyaml>=6.0.3",
+    "rasterio>=1.5.2",
+    "requests>=2.34.2",
+    "scikit-image>=0.26.0",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+    "shapely>=2.2.0",
+    "tqdm>=4.70.1",
+    "xarray>=2026.9.0",
+    "zarr>=3",
+]
+
+[project.scripts]
+pipeline = "pipeline:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"

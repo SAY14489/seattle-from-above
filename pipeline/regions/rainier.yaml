@@ -1,0 +1,31 @@
+store:
+  url: "s3://olmoearth/olmoearth-v1-3-embeddings/embeddings.zarr"
+  endpoint: "https://data.source.coop"
+
+# Test box: Mount Rainier, WA -- glacier retreat on an active stratovolcano.
+# A different kind of change from the other two regions (urban growth / land
+# reclamation): climate-driven ice loss on Nisqually, Emmons, Carbon and the
+# other glaciers, well documented and visually unambiguous.
+region:
+  name: mount_rainier
+  center_lon: -121.76
+  center_lat: 46.85
+  size_km: 48.0
+
+years:
+  a: 2017   # "before"
+  b: 2025   # "after"
+  c: 2021   # middle year, for persistence filtering (M2)
+
+processing:
+  tile_px: 800      # streamed read tile size (8km x 8km), must be a multiple of cell_px
+  cell_px: 100      # aggregation cell size (1km x 1km)
+  bands: 64         # use the 64-dim matryoshka embedding subset (faster, still accurate)
+
+sites:
+  change_percentile_threshold: 90.0   # v1 self-referential threshold; M2 replaces with local z-score
+  min_area_km2: 0.25
+  min_pixels: 25     # redundant safety floor on top of min_area_km2
+
+paths:
+  data_dir: "../data/rainier"

@@ -1,0 +1,306 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { getSites, getSummary } from "../../lib/data";
+
+export function getStaticPaths() {
+  const sites = getSites();
+  return sites.map((s) => ({ params: { id: s.id }, props: { site: s } }));
+}
+
+const { site } = Astro.props;
+const summary = getSummary();
+
+function describe(s: typeof site): string {
+  const acres = Math.round(s.area_km2 * 247.105).toLocaleString();
+  const areaStr = `${s.area_km2.toFixed(2)} km² (about ${acres} acres)`;
+  const where = `in ${s.name}`;
+  const { a, b } = s.years;
+
+  // Every site here already passed a persistence check (year B vs. a third,
+  // middle year) to make the list, so that's the unremarkable default and
+  // not worth restating. Only flag the rarer case where it's borderline.
+  const stuck = s.mean_change_bc < s.mean_change_ab * 0.6;
+  const caveat = stuck ? "" : " It fluctuated some after that, so this one's less certain than most.";
+
+  const byType: Record<string, string> = {
+    Logging: `${areaStr} of forest ${where} was clear-cut between ${a} and ${b}.`,
+    "Agriculture change": `Farmland ${where} changed noticeably between ${a} and ${b}, likely a shift in crops, irrigation, or field boundaries.`,
+    "New construction": `${areaStr} of open land ${where} was built out between ${a} and ${b}.`,
+    "Industrial / warehouse construction": `Large warehouse or industrial buildings went up ${where} between ${a} and ${b}, covering roughly ${areaStr}.`,
+    "Mining / quarry": `A quarry or mining operation ${where} expanded visibly between ${a} and ${b}.`,
+    "Possible fairgrounds / racetrack": `A large oval-track facility, likely a fairground or racetrack, was built or expanded ${where} between ${a} and ${b}.`,
+  };
+
+  const lead = byType[s.type] ?? `${areaStr} ${where} changed noticeably between ${a} and ${b}, consistent with ${s.type.toLowerCase()}.`;
+  return `${lead}${caveat}`;
+}
+---
+
+<Layout title={`#${site.rank} ${site.name} | Seattle From Above`} description={describe(site)}>
+  <div class="max-w-5xl mx-auto px-4 py-8 w-full">
+    <a href="/leaderboard" class="text-xs text-neutral-400 hover:text-white">&larr; Back to Top {summary.n_sites}</a>
+
+    <div class="flex items-start justify-between gap-4 mt-2 mb-6 flex-wrap">
+      <div>
+        <h1 class="text-2xl font-semibold">#{site.rank} {site.name}</h1>
+        <p class="text-sm text-neutral-400">{site.locality ?? site.country ?? ""} · {site.type} · {site.region_label}</p>
+      </div>
+      <button id="share-btn" class="text-xs px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 font-medium">
+        Share this site
+      </button>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div>
+        {site.timeline && site.timeline.length > 1 ? (
+          <>
+            {(() => {
+              const first = site.timeline![0];
+              const last = site.timeline![site.timeline!.length - 1];
+              return (
+                <>
+                  <div class="flex gap-2 mb-2 text-xs">
+                    <button id="mode-compare" class="view-mode-btn px-3 py-1.5 rounded-full bg-amber-400 text-neutral-900 font-medium" data-mode="compare">
+                      Compare
+                    </button>
+                    <button id="mode-timelapse" class="view-mode-btn px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-300 hover:bg-neutral-700" data-mode="timelapse">
+                      Timelapse
+                    </button>
+                  </div>
+
+                  <div class="relative aspect-square rounded-lg overflow-hidden border border-neutral-800 select-none">
+                    <div id="timelapse-view" class="absolute inset-0" style="display: none;">
+                      {site.timeline!.map((t, i) => (
+                        <img
+                          src={t.image}
+                          alt={`${site.name} in ${t.year}`}
+                          class="timeline-frame absolute inset-0 w-full h-full object-cover"
+                          style={i === 0 ? "" : "opacity: 0;"}
+                          data-index={i}
+                        />
+                      ))}
+                      <div class="absolute top-2 left-2 text-xs bg-black/60 px-2 py-1 rounded tabular-nums" id="timeline-year-badge">
+                        {first.year}
+                      </div>
+                    </div>
+
+                    <div id="compare-view" class="absolute inset-0">
+                      <img src={last.image} alt={`${site.name} in ${last.year}`} class="absolute inset-0 w-full h-full object-cover" />
+                      <div class="absolute inset-0 overflow-hidden" id="compare-before-clip" style="clip-path: inset(0 50% 0 0);">
+                        <img src={first.image} alt={`${site.name} in ${first.year}`} class="absolute inset-0 w-full h-full object-cover" />
+                      </div>
+                      <div class="absolute top-0 bottom-0 w-0.5 bg-white/80" id="compare-handle" style="left: 50%;"></div>
+                      <div class="absolute top-2 left-2 text-xs bg-black/60 px-2 py-1 rounded">{first.year}</div>
+                      <div class="absolute top-2 right-2 text-xs bg-black/60 px-2 py-1 rounded">{last.year}</div>
+                    </div>
+                  </div>
+
+                  <div id="compare-controls" class="mt-3">
+                    <input type="range" min="0" max="100" value="50" id="compare-range" class="w-full accent-amber-400" />
+                  </div>
+                  <p id="compare-caption" class="text-xs text-neutral-500 mt-1">
+                    Drag to compare {first.year} vs {last.year} side by side.
+                  </p>
+
+                  <div id="timelapse-controls" class="flex items-center gap-3 mt-3" style="display: none;">
+                    <button id="timeline-play" class="text-xs px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 font-medium shrink-0" aria-label="Play timelapse">
+                      &#9654; Play
+                    </button>
+                    <input type="range" min="0" max={site.timeline!.length - 1} value="0" step="1" id="timeline-range" class="flex-1 accent-amber-400" />
+                  </div>
+                  <p id="timelapse-caption" class="text-xs text-neutral-500 mt-1" style="display: none;">
+                    Drag or press play to watch {first.year} through {last.year}, year by year.
+                  </p>
+                </>
+              );
+            })()}
+            <script type="application/json" id="timeline-config" set:html={JSON.stringify(site.timeline.map((t) => t.year))} />
+          </>
+        ) : (
+          <div class="relative aspect-square rounded-lg overflow-hidden border border-neutral-800">
+            <img src={site.after_image ?? "/placeholder-after.svg"} alt={`${site.name} in ${site.years.b}`} class="absolute inset-0 w-full h-full object-cover" />
+            <div class="absolute top-2 left-2 text-xs bg-black/60 px-2 py-1 rounded">{site.years.b}</div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div id="site-map" class="w-full aspect-square rounded-lg border border-neutral-800"></div>
+        <dl class="grid grid-cols-2 gap-3 mt-4 text-sm">
+          <div class="bg-neutral-900 rounded-lg p-3 border border-neutral-800">
+            <dt class="text-xs text-neutral-500">Area</dt>
+            <dd class="text-lg font-medium">{site.area_km2.toFixed(2)} km²</dd>
+          </div>
+          <div class="bg-neutral-900 rounded-lg p-3 border border-neutral-800">
+            <dt class="text-xs text-neutral-500">Change score</dt>
+            <dd class="text-lg font-medium text-amber-400">{site.mean_change_ab.toFixed(3)}</dd>
+          </div>
+          <div class="bg-neutral-900 rounded-lg p-3 border border-neutral-800">
+            <dt class="text-xs text-neutral-500">Coordinates</dt>
+            <dd class="text-sm font-mono">{site.centroid_lat.toFixed(4)}, {site.centroid_lon.toFixed(4)}</dd>
+          </div>
+          <div class="bg-neutral-900 rounded-lg p-3 border border-neutral-800">
+            <dt class="text-xs text-neutral-500">Rank</dt>
+            <dd class="text-lg font-medium">#{site.rank} of {summary.n_sites}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="mt-6 bg-neutral-900 border border-neutral-800 rounded-lg p-4">
+      <h2 class="text-sm font-semibold mb-2">What changed</h2>
+      <p class="text-sm text-neutral-300 leading-relaxed">{describe(site)}</p>
+    </div>
+  </div>
+</Layout>
+
+<style is:global>
+  @import "maplibre-gl/dist/maplibre-gl.css";
+</style>
+
+<script define:vars={{ lon: site.centroid_lon, lat: site.centroid_lat, bbox: site.bbox, siteName: site.name, siteUrl: `/site/${site.id}` }}>
+  const timelineConfigEl = document.getElementById("timeline-config");
+  if (timelineConfigEl) {
+    const years = JSON.parse(timelineConfigEl.textContent);
+    const frames = document.querySelectorAll(".timeline-frame");
+    const range = document.getElementById("timeline-range");
+    const badge = document.getElementById("timeline-year-badge");
+    const playBtn = document.getElementById("timeline-play");
+
+    let playing = false;
+    let timer = null;
+
+    function showIndex(i) {
+      frames.forEach((f, idx) => (f.style.opacity = idx === i ? "1" : "0"));
+      badge.textContent = years[i];
+      range.value = i;
+    }
+
+    function stopPlay() {
+      playing = false;
+      playBtn.innerHTML = "&#9654; Play";
+      if (timer) clearInterval(timer);
+    }
+
+    range.addEventListener("input", () => {
+      stopPlay();
+      showIndex(Number(range.value));
+    });
+
+    playBtn.addEventListener("click", () => {
+      if (playing) {
+        stopPlay();
+        return;
+      }
+      playing = true;
+      playBtn.innerHTML = "&#9208; Pause";
+      if (Number(range.value) === frames.length - 1) showIndex(0);
+      timer = setInterval(() => {
+        const next = Number(range.value) + 1;
+        if (next >= frames.length) {
+          stopPlay();
+          return;
+        }
+        showIndex(next);
+      }, 700);
+    });
+
+    // Compare mode: the classic drag-to-reveal wipe between first and last year,
+    // good for seeing a stark before/after contrast rather than the gradual trend.
+    const compareRange = document.getElementById("compare-range");
+    const compareClip = document.getElementById("compare-before-clip");
+    const compareHandle = document.getElementById("compare-handle");
+    compareRange.addEventListener("input", () => {
+      const v = Number(compareRange.value);
+      compareClip.style.clipPath = `inset(0 ${100 - v}% 0 0)`;
+      compareHandle.style.left = v + "%";
+    });
+
+    const timelapseView = document.getElementById("timelapse-view");
+    const compareView = document.getElementById("compare-view");
+    const timelapseControls = document.getElementById("timelapse-controls");
+    const compareControls = document.getElementById("compare-controls");
+    const timelapseCaption = document.getElementById("timelapse-caption");
+    const compareCaption = document.getElementById("compare-caption");
+    const modeButtons = document.querySelectorAll(".view-mode-btn");
+
+    modeButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mode = btn.dataset.mode;
+        modeButtons.forEach((b) => {
+          b.classList.toggle("bg-amber-400", b === btn);
+          b.classList.toggle("text-neutral-900", b === btn);
+          b.classList.toggle("font-medium", b === btn);
+          b.classList.toggle("bg-neutral-800", b !== btn);
+          b.classList.toggle("text-neutral-300", b !== btn);
+        });
+        const showTimelapse = mode === "timelapse";
+        timelapseView.style.display = showTimelapse ? "" : "none";
+        compareView.style.display = showTimelapse ? "none" : "";
+        timelapseControls.style.display = showTimelapse ? "" : "none";
+        compareControls.style.display = showTimelapse ? "none" : "";
+        timelapseCaption.style.display = showTimelapse ? "" : "none";
+        compareCaption.style.display = showTimelapse ? "none" : "";
+        if (!showTimelapse) stopPlay();
+      });
+    });
+  }
+
+  document.getElementById("share-btn").addEventListener("click", async () => {
+    const url = window.location.origin + siteUrl;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: siteName, url });
+      } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      const btn = document.getElementById("share-btn");
+      const original = btn.textContent;
+      btn.textContent = "Link copied!";
+      setTimeout(() => (btn.textContent = original), 1500);
+    }
+  });
+
+</script>
+
+<script type="application/json" id="site-map-config" set:html={JSON.stringify({ lon: site.centroid_lon, lat: site.centroid_lat, bbox: site.bbox })} />
+
+<script>
+  import { Map as MapLibreMap, NavigationControl, Marker, Popup } from "maplibre-gl";
+
+  const { lon, lat, bbox } = JSON.parse(document.getElementById("site-map-config").textContent);
+
+  const map = new MapLibreMap({
+    container: "site-map",
+    style: "https://tiles.openfreemap.org/styles/liberty",
+    center: [lon, lat],
+    zoom: 13,
+    interactive: true,
+  });
+  map.addControl(new NavigationControl(), "top-right");
+  map.on("load", () => {
+    new Marker({ color: "#fbbf24" }).setLngLat([lon, lat]).addTo(map);
+    if (bbox) {
+      map.addSource("site-bbox", {
+        type: "geojson",
+        data: {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [bbox[0], bbox[1]],
+                [bbox[2], bbox[1]],
+                [bbox[2], bbox[3]],
+                [bbox[0], bbox[3]],
+                [bbox[0], bbox[1]],
+              ],
+            ],
+          },
+          properties: {},
+        },
+      });
+      map.addLayer({ id: "site-bbox-line", type: "line", source: "site-bbox", paint: { "line-color": "#fbbf24", "line-width": 2 } });
+    }
+  });
+</script>

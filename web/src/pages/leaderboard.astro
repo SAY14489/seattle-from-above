@@ -1,0 +1,119 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getSites, getSummary } from "../lib/data";
+
+const sites = getSites();
+const summary = getSummary();
+const types = [...new Set(sites.map((s) => s.type))].sort();
+
+const typeCounts = Object.entries(
+  sites.reduce<Record<string, number>>((acc, s) => {
+    acc[s.type] = (acc[s.type] ?? 0) + 1;
+    return acc;
+  }, {})
+).sort((a, b) => b[1] - a[1]);
+const maxCount = typeCounts[0]?.[1] ?? 1;
+
+// Categories with only 1-2 members are the standouts worth calling out by name.
+const notableTypes = new Set(typeCounts.filter(([, c]) => c <= 2).map(([t]) => t));
+const notableSites = sites.filter((s) => notableTypes.has(s.type)).sort((a, b) => a.rank - b.rank);
+---
+
+<Layout title="Top 100 | Seattle From Above">
+  <div class="max-w-5xl mx-auto px-4 py-8 w-full">
+    <h1 class="text-2xl font-semibold mb-1">Top {sites.length} changed places</h1>
+    <p class="text-sm text-neutral-400 mb-6">
+      {summary.n_regions} test region{summary.n_regions === 1 ? "" : "s"} &middot; ranked by area &times; mean change score
+    </p>
+
+    <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4 mb-6">
+      <h2 class="text-sm font-semibold mb-1">What kind of change is this, anyway?</h2>
+      <p class="text-xs text-neutral-500 mb-4">
+        Hand-reviewed from each site's before/after imagery, not an automated classifier yet.
+      </p>
+      <div class="space-y-2">
+        {typeCounts.map(([type, count]) => (
+          <div class="flex items-center gap-3">
+            <div class="w-44 shrink-0 text-xs text-neutral-300 text-right truncate" title={type}>{type}</div>
+            <div class="flex-1 h-5 rounded-sm bg-neutral-800 relative">
+              <div
+                class="h-5 rounded-r-sm bg-amber-400"
+                style={`width: ${Math.max((count / maxCount) * 100, 3)}%`}
+              ></div>
+            </div>
+            <div class="w-8 shrink-0 text-xs text-neutral-400 tabular-nums">{count}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {notableSites.length > 0 && (
+      <div class="bg-neutral-900 border border-neutral-800 rounded-lg p-4 mb-6">
+        <h2 class="text-sm font-semibold mb-1">Notable finds</h2>
+        <p class="text-xs text-neutral-500 mb-3">Change types that only showed up once or twice in the Top {sites.length}.</p>
+        <ul class="text-sm space-y-1.5">
+          {notableSites.map((s) => (
+            <li>
+              <a href={`/site/${s.id}`} class="font-medium hover:text-amber-400">#{s.rank} {s.name}</a>
+              <span class="text-neutral-500 text-xs"> ({s.type}, {s.locality ?? s.country ?? ""})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    <div class="flex gap-2 mb-4 flex-wrap text-xs">
+      <button data-filter="all" class="filter-btn px-3 py-1.5 rounded-full bg-amber-400 text-neutral-900 font-medium">All types</button>
+      {types.map((t) => (
+        <button data-filter={t} class="filter-btn px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-300 hover:bg-neutral-700">{t}</button>
+      ))}
+    </div>
+
+    <div class="overflow-x-auto rounded-lg border border-neutral-800">
+      <table class="w-full text-sm">
+        <thead class="bg-neutral-900 text-neutral-400 text-xs uppercase tracking-wide">
+          <tr>
+            <th class="text-left px-4 py-3 w-12">#</th>
+            <th class="text-left px-4 py-3">Place</th>
+            <th class="text-left px-4 py-3">Type</th>
+            <th class="text-right px-4 py-3">Area (km²)</th>
+            <th class="text-right px-4 py-3">Score</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body" class="divide-y divide-neutral-900">
+          {sites.map((s) => (
+            <tr class="leaderboard-row hover:bg-neutral-900/60 transition-colors" data-type={s.type}>
+              <td class="px-4 py-3 text-neutral-500 tabular-nums">{s.rank}</td>
+              <td class="px-4 py-3">
+                <a href={`/site/${s.id}`} class="font-medium hover:text-amber-400">{s.name}</a>
+                <div class="text-xs text-neutral-500">{s.locality ?? s.country ?? ""} &middot; {s.years.a} to {s.years.b}</div>
+              </td>
+              <td class="px-4 py-3 text-neutral-400 text-xs">{s.type}</td>
+              <td class="px-4 py-3 text-right tabular-nums">{s.area_km2.toFixed(2)}</td>
+              <td class="px-4 py-3 text-right tabular-nums font-medium text-amber-400">{s.mean_change_ab.toFixed(3)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".filter-btn");
+  const rows = document.querySelectorAll<HTMLTableRowElement>(".leaderboard-row");
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.remove("bg-amber-400", "text-neutral-900", "font-medium"));
+      buttons.forEach((b) => b.classList.add("bg-neutral-800", "text-neutral-300"));
+      btn.classList.remove("bg-neutral-800", "text-neutral-300");
+      btn.classList.add("bg-amber-400", "text-neutral-900", "font-medium");
+
+      const filter = btn.dataset.filter;
+      rows.forEach((row) => {
+        row.style.display = filter === "all" || row.dataset.type === filter ? "" : "none";
+      });
+    });
+  });
+</script>
